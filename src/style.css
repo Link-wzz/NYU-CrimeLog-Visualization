@@ -1,0 +1,27 @@
+* {
+  margin: 0px;
+  padding:0px;
+  box-sizing: border-box;
+}
+
+canvas{
+  width: 100vw;
+  height: 100vh;
+}
+
+.building-tooltip {
+  min-width: 160px;
+  max-width: 220px;
+  padding: 6px 10px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.98);
+  color: #333;
+  font-size: 12px;
+  line-height: 1.4;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  pointer-events: none;
+}
+.building-tooltip strong {
+  font-size: 13px;
+}
