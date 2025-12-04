@@ -24,19 +24,20 @@ let hoverTarget = null // { rawName, displayName, crimeCount, part }
 // ------------------ 场景 & 渲染器 & 相机 ------------------
 
 const scene = new THREE.Scene()
-// scene.background = new THREE.Color(0xffffff)
+scene.background = new THREE.Color(0xffffff)
 
 const renderer = new THREE.WebGLRenderer({ antialias: true })
 
 const camera = new THREE.PerspectiveCamera(
-  45,
+  10,
   window.innerWidth / window.innerHeight,
   0.1,
   1000
 )
 
 // 移动 camera
-camera.position.set(0, 0, 5)
+camera.position.set(5, 7,-5)  // 可以自己微调
+
 
 // 只需要 append 一次，否则会出现两个 canvas
 renderer.setSize(window.innerWidth, window.innerHeight)
@@ -46,25 +47,28 @@ document.body.appendChild(renderer.domElement)
 
 const controls = new OrbitControls(camera, renderer.domElement)
 
-// 惯性阻尼（转动更顺滑）
+controls.target.set(0.4, 2.4, 0)   // 模型中心
+controls.update()              // 刷新
+
+
+// 惯性阻尼可以保留
 controls.enableDamping = true
-controls.dampingFactor = 0.05
+controls.dampingFactor = 0.1
 
-// 允许缩放、平移、旋转
-controls.enableZoom = true
+// ✅ 不允许旋转 & 缩放，只允许平移
+controls.enableRotate = false
+controls.enableZoom = false
 controls.enablePan = true
-controls.enableRotate = true
 
-// 鼠标按键映射：左旋转，中滚轮缩放，右平移
+// ✅ 左键 = 平移，中键/右键不用
 controls.mouseButtons = {
-  LEFT: THREE.MOUSE.ROTATE,
-  MIDDLE: THREE.MOUSE.DOLLY,
+  LEFT: THREE.MOUSE.PAN,
+  MIDDLE: THREE.MOUSE.PAN,   // 随便映射一下，实际上也用不到
   RIGHT: THREE.MOUSE.PAN,
 }
 
-// 限制上下仰角，防止相机翻到地面下面
-controls.minPolarAngle = 0.1
-controls.maxPolarAngle = Math.PI - 0.1
+// ✅ 为了防止“拖着拖着把相机拉太远”，也可以锁一下距离（可选）
+controls.minDistance = controls.maxDistance = camera.position.length()
 
 // ------------------ 其他全局对象 ------------------
 

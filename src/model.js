@@ -267,7 +267,7 @@ export default class Model {
 		this.peripheralGroup = group
 
 		const peripheralMaterial = new MeshStandardMaterial({
-			color: 0x777777, // 可以按喜好调
+			color: 0xf5f5f5, // 可以按喜好调
 			metalness: 0.1,
 			roughness: 0.9,
 		})
@@ -299,7 +299,7 @@ _setupSingleBuilding(group) {
     if (child.isMesh) {
       const mat = new MeshPhongMaterial({
         color: this.colorLow.clone(),        // 初始颜色：低犯罪浅紫
-        shininess: 20,                       // 高光强度，可以自己再调
+        shininess: 40,                       // 高光强度，可以自己再调
         specular: new Color('#444444'),      // 高光颜色
       })
 
