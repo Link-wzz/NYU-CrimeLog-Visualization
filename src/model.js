@@ -264,23 +264,29 @@ export default class Model {
 	 * 使用统一的灰色 MeshStandardMaterial，不参与犯罪统计。
 	 */
 	_setupPeripheral(group) {
-		this.peripheralGroup = group
+        this.peripheralGroup = group
 
-		const peripheralMaterial = new MeshStandardMaterial({
-			color: 0xf5f5f5, // 可以按喜好调
-			metalness: 0.1,
-			roughness: 0.9,
-		})
+        // 【修改点 1】调整材质参数
+        const peripheralMaterial = new MeshStandardMaterial({
+            color: 0xffffff,     // 将颜色改为纯白或非常浅的灰（图二看起来几乎是白的）
+            metalness: 0.0,      // 0.0 = 完全非金属，像石膏或粘土
+            roughness: 1.0,      // 1.0 = 最粗糙，完全哑光面
+            // flatShading: true // 可选：如果想要更硬朗的低多边形风格可以开启，但图二看起来是光滑的，所以先注释掉
+        })
 
-		group.traverse((child) => {
-			if (child.isMesh) {
-				// 注意：给外围建筑单独材质，避免和楼宇共享
-				child.material = peripheralMaterial.clone()
-				child.castShadow = false
-				child.receiveShadow = true
-			}
-		})
-	}
+        group.traverse((child) => {
+            if (child.isMesh) {
+                // 注意：给外围建筑单独材质，避免和楼宇共享
+                child.material = peripheralMaterial.clone()
+                
+                // 【修改点 2 🌟关键🌟】开启投射阴影
+                // 原代码是 child.castShadow = false; 这导致周围建筑没有立体感
+                child.castShadow = true 
+                
+                child.receiveShadow = true
+            }
+        })
+    }
 
 	/**
 	 * 🏢 处理一栋 NYU 楼宇（比如 BOBST_LIBRARY）

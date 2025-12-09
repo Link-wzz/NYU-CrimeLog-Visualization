@@ -1,5 +1,7 @@
 import './style.css'
 
+import Stats from 'three/examples/jsm/libs/stats.module.js'
+
 import * as THREE from 'three'  // 引入threejs 库
 import { addDefaultMeshes, addSandardMesh } from './addDefaultMeshes'
 import { addLight } from './addLight'
@@ -26,7 +28,20 @@ let hoverTarget = null // { rawName, displayName, crimeCount, part }
 const scene = new THREE.Scene()
 scene.background = new THREE.Color(0xffffff)
 
-const renderer = new THREE.WebGLRenderer({ antialias: true })
+const renderer = new THREE.WebGLRenderer({ 
+  antialias: true,            // 1. 开启抗锯齿 (边缘平滑)
+  powerPreference: "high-performance" // 2. 提示浏览器使用独显 (提升性能)
+})
+renderer.shadowMap.enabled = true
+renderer.shadowMap.type = THREE.PCFSoftShadowMap
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
+
+renderer.setSize(window.innerWidth, window.innerHeight)
+renderer.outputColorSpace = THREE.SRGBColorSpace
+renderer.toneMapping = THREE.ACESFilmicToneMapping
+renderer.toneMappingExposure = 1.2; // 稍微调亮一点以配合 Filmic
+
+// document.body.appendChild(renderer.domElement)
 
 const camera = new THREE.PerspectiveCamera(
   10,
@@ -34,6 +49,13 @@ const camera = new THREE.PerspectiveCamera(
   0.1,
   1000
 )
+
+
+// 【新增】初始化 FPS 监测器
+const stats = new Stats()
+// 默认显示 FPS，如果想看渲染时间可以调用 stats.showPanel(1)
+document.body.appendChild(stats.dom)
+
 
 // 移动 camera
 camera.position.set(5, 7,-5)  // 可以自己微调
@@ -93,6 +115,7 @@ function init() {
   lights.default = addLight()
   scene.add(lights.default)
 
+  addGround()
   loadModel()
   animate()
 }
@@ -174,6 +197,38 @@ function hideTooltip() {
   tooltip.style.display = 'none'
 }
 
+//绘制地面
+function addGround() {
+  //create the ground
+  const groundGeometry = new THREE.PlaneGeometry(50, 50)
+
+  // 2. 创建材质：使用 StandardMaterial 以便接收光照和阴影
+  // 颜色设为稍稍带点灰的白 (0xf5f5f5)，这比纯白 (0xffffff) 更能衬托柔和的阴影
+  // 粗糙度设为 1，金属度设为 0，打造哑光石膏地面效果
+  const groundMaterial = new THREE.MeshStandardMaterial({
+    color: 0xe0e0e0,
+    roughness: 1.0,
+    metalness: 0.0,
+  })
+
+  // 3. 创建网格 (Mesh)
+  const ground = new THREE.Mesh(groundGeometry, groundMaterial)
+
+  // 4. 调整姿态
+  // 默认平面是竖着的 (XY平面)，我们需要绕 X 轴旋转 -90 度让它躺平在 XZ 平面上
+  ground.rotation.x = -Math.PI / 2
+  
+  // 将位置稍微向下移动一点点 (-0.01)，防止和建筑底部的面重叠闪烁 (Z-fighting)
+  ground.position.y = 0.001
+
+  // 【关键】告诉地面它需要接收别人投射的阴影
+  ground.receiveShadow = true
+
+  // 5. 添加到场景
+  scene.add(ground)
+}
+
+
 // ------------------ 载入 GLB 模型 + 应用犯罪数据 ------------------
 
 // 读取 crime-summary，把次数写进模型里
@@ -241,7 +296,7 @@ function loadModel() {
 
 function animate() {
   requestAnimationFrame(animate)
-
+stats.update()
   // 如果你以后要用动画 mixer，这里可以打开：
   // const delta = clock.getDelta()
   // mixers.forEach((m) => m.update(delta))
