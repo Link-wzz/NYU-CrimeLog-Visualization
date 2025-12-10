@@ -45,13 +45,30 @@ function formatSlugToMonthLabel(slug) {
   return shortMonth.charAt(0).toUpperCase() + shortMonth.slice(1).toLowerCase();
 }
 
-// 月份 Slugs (对应 CSV 文件名)
-const monthSlugs = [
-    'october-2024', 'november-2024', 'december-2024',
-    'january-2025', 'february-2025', 'march-2025',
-    'april-2025', 'may-2025', 'june-2025',
-    'july-2025', 'august-2025', 'september-2025', 'october-2025'
-];
+// 🌟 动态生成过去 N 个月的 slugs (例如: 'october-2025')
+function generateMonthSlugs(count = 24) {
+  const slugs = [];
+  const date = new Date(); // 获取当前时间
+  
+  // 如果你的数据通常滞后一个月（比如现在是11月，由于统计延迟你只有10月的数据），
+  // 可以取消下面这一行的注释：
+  date.setMonth(date.getMonth() - 1); 
+
+  for (let i = 0; i < count; i++) {
+    // 获取月份全称 (e.g., "October")
+    const monthName = date.toLocaleString('en-US', { month: 'long' }).toLowerCase();
+    const year = date.getFullYear();
+    
+    slugs.push(`${monthName}-${year}`);
+    
+    // 往前推一个月
+    date.setMonth(date.getMonth() - 1);
+  }
+  return slugs;
+}
+
+// 🌟 全局变量：现在它是动态生成的了，包含了从“现在”开始往回推的24个月
+const monthSlugs = generateMonthSlugs(24);
 
 // =========================================================
 // 2. 场景、相机与渲染器
@@ -155,24 +172,45 @@ async function loadAvailableMonths() {
     const optionsList = document.getElementById('optionsList');
     if (!optionsList) return;
     
-    // 转换函数：将 october-2024 转换为 October 2024
+    // 1. 找到分割线的位置
+    const divider = optionsList.querySelector('.select-divider');
+    
+    // 2. 清除分割线【之后】的所有旧选项 (防止重复添加)
+    // 如果没有分割线，就直接清空整个 list 重新加
+    if (divider) {
+        let nextSibling = divider.nextElementSibling;
+        while (nextSibling) {
+            const toRemove = nextSibling;
+            nextSibling = nextSibling.nextElementSibling;
+            toRemove.remove();
+        }
+    } else {
+        // 如果 HTML 里没写 divider，就只保留前3个选项(假设前3个是固定选项)
+        // 或者你可以手动在 HTML 里加上 <div class="select-divider"></div>
+        console.warn("未找到 .select-divider，月份可能会添加位置不正确");
+    }
+
+    // 格式化函数 (保持你原来的)
     const formatSlug = (slug) => {
         return slug.split('-')
             .map(word => word.charAt(0).toUpperCase() + word.slice(1))
             .join(' ');
     };
 
-    // 倒序排列，让最新的月份排在前面
-    const reversedSlugs = [...monthSlugs].reverse();
-
-    reversedSlugs.forEach(slug => {
+    // 3. 遍历全局的 monthSlugs (已经是动态生成的了，且顺序是从新到旧)
+    // 因为 generateMonthSlugs 生成出来就是 [最新, 次新...]，所以这里不需要 reverse()
+    // 如果你希望能反过来，可以自行决定是否加 .reverse()
+    
+    monthSlugs.forEach(slug => {
         const opt = document.createElement('div');
         opt.className = 'option';
-        opt.textContent = formatSlug(slug);
-        opt.dataset.value = slug; 
+        opt.textContent = formatSlug(slug); // e.g., "October 2025"
+        opt.dataset.value = slug;           // e.g., "october-2025"
+        
         optionsList.appendChild(opt);
     });
 
+    // 4. 重新绑定点击事件 (因为添加了新元素)
     bindOptionClicks();
 }
 
@@ -264,18 +302,14 @@ async function fetchAndCalcCsvData(slugs) {
   const timeBins = [0, 0, 0, 0];  // 用于 Time Chart
   const countByType = {};         // 用于 Crime Types Chart
 
-  // 🌟 新增：用于存储每月总数的数组 (Chart 4 数据源)
-  const monthlyTrendData = []; 
+ const monthlyTrendData = []; 
 
-  // 3. 并行获取所有 CSV
   const promises = slugs.map(slug => fetch(`/crime-data/crime-log-${slug}.csv`));
   const responses = await Promise.all(promises);
 
-  // 4. 循环处理每个文件
-  // 注意：这里用 for 循环是为了方便拿到 index (i)，从而获取对应的 slug
   for (let i = 0; i < responses.length; i++) {
     const res = responses[i];
-    const currentSlug = slugs[i]; // 获取文件名，例如 'dec-2024'
+    const currentSlug = slugs[i]; // e.g. 'october-2025'
 
     if (!res.ok) continue; 
     
@@ -283,13 +317,24 @@ async function fetchAndCalcCsvData(slugs) {
     const rows = parseCSV(text);
 
     // =======================================================
-    // 🌟 关键点 1：在这里统计“当前这个月”的总数 (Chart 4)
+    // 🌟 核心修改：解析日期并存储，用于后续排序
     // =======================================================
-    const monthLabel = formatSlugToMonthLabel(currentSlug); // Dec
+    const parts = currentSlug.split('-');
+    const monthStr = parts[0]; 
+    const yearStr = parts[1];
+    
+    // 生成真实日期对象 (例如: 2025-10-01)
+    const dateObj = new Date(`${monthStr} 1, ${yearStr}`);
+
+    // 生成显示用标签 (例如: Oct 25)
+    const labelWithYear = formatSlugToLabelWithYear(currentSlug);
+
     monthlyTrendData.push({
-      label: monthLabel,
-      value: rows.length // 这个月的行数 = 犯罪总数
+      label: labelWithYear, 
+      value: rows.length,
+      date: dateObj // 排序用的“隐形”字段
     });
+
 
     // 继续逐行处理其他数据
     rows.forEach(row => {
@@ -401,19 +446,20 @@ async function fetchAndCalcCsvData(slugs) {
   const trendDataReversed = [...monthlyTrendData].reverse();
 
 if (typeof drawMonthlyCrimeTrend === 'function') {
-    setTimeout(() => {
-       drawMonthlyCrimeTrend(trendDataReversed, currentLabelText); 
+    
+    // 🌟 重点：按日期升序排列 (Oldest -> Newest)
+    // 这样 2024年的数据会在左边，Oct 25 会在最右边
+    const sortedTrendData = monthlyTrendData.sort((a, b) => a.date - b.date);
 
-       // =======================================================
-       // 🌟 关键新增：图表画完了，页面高度变了，强制 GSAP 刷新坐标！
-       // =======================================================
-       // 告诉 ScrollTrigger：“页面布局变了，请重新计算所有触发点的位置”
-       // 如果不加这一行，底部的文字会被认为“已经划过去了”，所以不播放动画。
+    setTimeout(() => {
+       // 直接传入排好序的数据 (不需要再 reverse 了)
+       drawMonthlyCrimeTrend(sortedTrendData, currentLabelText); 
+       
+       // 刷新动画触发器
        import("gsap/ScrollTrigger").then(({ ScrollTrigger }) => {
           ScrollTrigger.refresh();
        });
-
-    }, 100); // 稍微给多一点延时(比如100ms)，确保 DOM 确实渲染完了
+    }, 100);
   }
 }
 
@@ -1461,6 +1507,25 @@ function drawMonthlyCrimeTrend(monthlyData) {
     .text(d => d.label);
 }
 
+
+// 放在 main.js 最顶部
+function formatSlugToLabelWithYear(slug) {
+  if (!slug) return '';
+  // 假设 slug 是 'october-2025'
+  const parts = slug.split('-');
+  const monthStr = parts[0]; // 'october'
+  const yearStr = parts[1];  // '2025'
+  
+  // 1. 处理月份：取前3个字母并首字母大写 -> 'Oct'
+  const shortMonth = monthStr.substring(0, 3);
+  const formattedMonth = shortMonth.charAt(0).toUpperCase() + shortMonth.slice(1).toLowerCase();
+
+  // 2. 处理年份：从 '2025' 截取后两位 -> '25'
+  const shortYear = yearStr.substring(2, 4);
+
+  // 3. 组合 -> 'Oct 25'
+  return `${formattedMonth} ${shortYear}`;
+}
 
 // =========================================================
 // 7. 动画与交互

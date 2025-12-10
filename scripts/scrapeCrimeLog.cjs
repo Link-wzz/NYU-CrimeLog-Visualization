@@ -21,6 +21,8 @@ const MONTH_SLUGS = [
   'august-2025',
   'september-2025',
   'october-2025',
+  'november-2025',
+
 ]
 
 // NYU crime log 基础 URL
