@@ -9,6 +9,7 @@
   <body>
     <div id="heroSection">
       <div id="threeJsHolder"></div>
+      <!-- <div class="hero-fade-overlay"></div> -->
       
       <div class="mainSectionHolder">
         <div class="titleArea">
@@ -38,8 +39,105 @@
       </div>
     </div>
 
-    <div class="articleContent">
-       </div>
+   <div class="articleContent dark-theme">
+  <div class="data-highlight-container">
+    
+    <div class="intro-text-block">
+      <div class="intro-paragraph">
+        Nestled in the heart of New York City, New York University spans more than 171 buildings across its Manhattan and Brooklyn campuses.
+      </div>
+      
+      <div class="intro-paragraph highlight-purple">
+        Crime happens here every day.
+      </div>
+      
+      <div class="intro-paragraph">
+        Yet the university’s crime logs and reports offer little sense of how these incidents fit together. The data exists, but the story doesn’t.
+      </div>
+      
+      <div class="intro-paragraph">
+        So we organized the numbers ourselves — and a few patterns began to emerge.
+        <br>
+        Here’s what we found.
+      </div>
+    </div>
+
+    <div class="data-kicker">
+      In <span id="dynamic-time-text">the past 12 months</span>...
+    </div>
+
+    <div class="big-stat-block">
+      
+      <div class="stat-row">
+        <div class="big-number" id="stat-total-count">67</div>
+        <div class="stat-label">Incidents was reported</div>
+      </div>
+
+      <div class="stat-row">
+        <div class="big-text" id="stat-top-crime">Larceny</div>
+        <div class="stat-label">was the most happened crime</div>
+      </div>
+
+      <div class="stat-row">
+        <div class="big-text" id="stat-top-location">Schwartz Hall</div>
+        <div class="stat-label">was where the most crime happened</div>
+      </div>
+
+    </div>
+
+    <div class="narrative-bridge">
+      <div class="bridge-question">So, when did these crimes happen?</div>
+      <div class="bridge-text">
+        Well, we analyzed and compiled monthly crime data on the NYU campus, grouped by time of day.
+      </br>Here is what we found:
+      </div>
+    </div>
+    
+    <div class="chart-card-container">
+  <div class="chart-header">
+    <div class="chart-title">What Time NYU Incidents Happen Most <span id="chart-time-label">(past 12 months)</span></div>
+  </div>
+
+  <div id="d3-chart-wrapper">
+    </div>
+    </div>
+
+      <div class="narrative-bridge">
+      <div class="bridge-question">But time is only part of the story. Where did these crimes actually happen?</div>
+      <div class="bridge-text">
+        Some locations appear again and again — and the pattern is hard to ignore.
+
+      </div>
+    </div>
+
+  <div class="chart-card-container" style="margin-top: 40px;">
+        <div class="chart-header">
+        <div class="chart-title">NYU Top 10 crime hotspots <span id="chart-time-label">(past 12 months)</span></div>
+      </div>
+      <div id="d3-chartTwo-wrapper"></div>
+  </div>
+
+    <div class="narrative-bridge">
+      <div class="bridge-question">So we know where crime happens most often. But what exactly is happening in these places?</div>
+      <div class="bridge-text">
+        The breakdown of crime types offers a clearer view..
+      </div>
+    </div>
+    
+  <div class="chart-card-container" style="margin-top: 40px;">
+     <div class="chart-header">
+        <div class="chart-title">NYU Top crime types <span id="chart-time-label">(past 12 months)</span></div>
+     </div>
+
+    <div id="d3-chartThree-wrapper">
+    </div>
+  </div>
+
+   
+
+
+  </div>
+</div>
 
     <script type="module" src="/src/main.js"></script>
   </body>

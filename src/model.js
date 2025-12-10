@@ -217,6 +217,7 @@ export default class Model {
       part.crimeCount = 0;
     });
   }
+  
 
 	_formatBuildingName(rawName) {
 		if (!rawName) return ''
