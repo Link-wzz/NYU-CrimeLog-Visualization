@@ -1,27 +1,197 @@
-* {
-  margin: 0px;
-  padding:0px;
+/* style.css */
+
+/* --- 字体定义 (保持不变) --- */
+@font-face {
+    font-family: 'NYUTypeBold'; 
+    src: url('/fonts/NYUPerstare-Bold.otf') format('truetype');
+}
+@font-face {
+    font-family: 'NYUTypeRegular'; 
+    src: url('/fonts/NYUPerstare-Regular-Bold.otf') format('truetype');
+}
+@font-face {
+    font-family: 'NYUTypeMedium'; 
+    src: url('/fonts/NYUPerstare-Medium.otf') format('truetype');
+}
+
+:root {
+    --primary-color: #9B00FF;
+    --text-color: #330662;
+    --secondary-light: #EBCCFE;
+    --white: #ffffff;
+    --black: #000000;
+}
+
+/* --- 基础布局 --- */
+body, html {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  overflow-x: hidden;
+  height: auto; /* 允许内容撑开 */
+  font-family: 'Inter', sans-serif;
+}
+
+/* --- 🌟 关键：首屏包装容器 --- */
+#heroSection {
+  position: relative; /* 定位基准 */
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+  background-color: var(--white);
+}
+
+/* 3D 容器设置 */
+#threeJsHolder {
+  position: absolute; /* 相对于 heroSection 定位 */
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 1;
+  pointer-events: auto; /* 🌟 开启交互：允许拖拽 */
+}
+
+/* UI 覆盖层设置 */
+.mainSectionHolder {
+  position: absolute; /* 相对于 heroSection 定位 */
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 2; /* 盖在 3D 上面 */
+  padding: 50px;
+  box-sizing: border-box;
+  
+  /* 🌟 核心：穿透逻辑 */
+  pointer-events: none; 
+}
+
+/* 文字区域 */
+.titleArea {
+  width: 50vw;
+  min-width: 400px;
+  display: flex;
+  flex-direction: column;
+  
+  /* 🌟 恢复交互：文字区可以被选中或点击 */
+  pointer-events: auto; 
+}
+
+.Title {
+  font-family: NYUTypeBold;
+  font-size: 36px;
+  color: var(--primary-color);
+  margin-bottom: 8px;
+}
+
+.Subtitle {
+  font-family: NYUTypeMedium;
+  font-size: 16px;
+  color: var(--text-color);
+  line-height: 1.5;
+}
+/*TimeRange */
+/* 自定义选择器容器 */
+.timeRangeHolder {
+  margin-top: 20px; /* 标题下方的间距 */
+  pointer-events: auto; /* 允许交互 */
+}
+
+.custom-select {
+  position: relative;
+  width: 260px;
+  height: 44px;
+  background: #E0E0E0; /* 设计图中的浅灰色背景 */
+  border-radius: 12px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.select-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 100%;
+  padding: 0 16px;
+  font-family: 'NYUTypeMedium';
+  font-size: 16px; /* 16pt 约为 21px，但网页通常使用 px 适配 */
+  color: var(--text-color);
+}
+
+.arrow-icon {
+  transition: transform 0.3s ease;
+}
+
+.custom-select.open .arrow-icon {
+  transform: rotate(180deg);
+}
+
+/* 下拉列表项 */
+.options-list {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  width: 100%;
+  background: rgba(224, 224, 224, 0.744);
+  backdrop-filter: blur(10px); /* 增加高级感 */
+  border-radius: 8px;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+  display: none;
+  overflow: hidden;
+  z-index: 100;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.custom-select.open .options-list {
+  display: block;
+}
+
+.option {
+  padding: 12px 16px;
+  font-family: 'NYUTypeMedium';
+  font-size: 14px;
+  color: var(--text-color);
+  transition: background 0.2s;
+}
+
+.option:hover {
+  background: var(--secondary-light);
+}
+
+.option.active {
+  color: var(--primary-color);
+  font-weight: bold;
+}
+
+.select-divider {
+  height: 1px;
+  background: #ccccccbb;
+  margin: 4px 16px;
+}
+
+/* 滚动条美化 */
+.options-list::-webkit-scrollbar {
+  width: 6px;
+}
+.options-list::-webkit-scrollbar-thumb {
+  background: var(--primary-color);
+  border-radius: 3px;
+}
+/* Time Range END */
+/* 模拟文章后续部分 */
+.articleContent {
+  position: relative;
+  z-index: 3;
+  width: 100%;
+  height: 1500px; /* 模拟超长文章内容 */
+  background-color: var(--white);
+  padding: 100px 50px;
   box-sizing: border-box;
 }
 
-canvas{
-  width: 100vw;
-  height: 100vh;
-}
-
-.building-tooltip {
-  min-width: 160px;
-  max-width: 220px;
-  padding: 6px 10px;
-  border-radius: 4px;
-  background: rgba(255, 255, 255, 0.98);
-  color: #333;
-  font-size: 12px;
-  line-height: 1.4;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-  border: 1px solid rgba(0, 0, 0, 0.08);
-  pointer-events: none;
-}
-.building-tooltip strong {
-  font-size: 13px;
+/* 全局辅助 */
+* {
+  border: none !important;
 }

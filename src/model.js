@@ -212,6 +212,12 @@ export default class Model {
 		})
 	}
 
+	resetAllCounts() {
+    this.buildings.forEach((part) => {
+      part.crimeCount = 0;
+    });
+  }
+
 	_formatBuildingName(rawName) {
 		if (!rawName) return ''
 		return rawName

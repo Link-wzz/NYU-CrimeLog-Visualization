@@ -7,7 +7,40 @@
     <title>NYU Crime Log Visualization</title>
   </head>
   <body>
-    <div id="app"></div>
+    <div id="heroSection">
+      <div id="threeJsHolder"></div>
+      
+      <div class="mainSectionHolder">
+        <div class="titleArea">
+          <div class="Title">NYU Crime Log Visualized</div>
+          <div class="Subtitle">
+            Turning NYU's monthly crime data into clear, interactive insights.
+          </div>
+        </div>
+<div class="timeRangeHolder">
+  <div class="custom-select" id="timeSelect">
+    <div class="select-trigger">
+      <span class="current-value">Past 12 Months</span>
+      <div class="arrow-icon">
+        <svg width="14" height="8" viewBox="0 0 14 8" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M1 1L7 7L13 1" stroke="#330662" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </div>
+    </div>
+    <div class="options-list" id="optionsList">
+      <div class="option active" data-value="12">Past 12 Months</div>
+      <div class="option" data-value="6">Past 6 Months</div>
+      <div class="option" data-value="3">Past 3 Months</div>
+      <div class="select-divider"></div>
+      </div>
+  </div>
+</div>
+      </div>
+    </div>
+
+    <div class="articleContent">
+       </div>
+
     <script type="module" src="/src/main.js"></script>
   </body>
 </html>
