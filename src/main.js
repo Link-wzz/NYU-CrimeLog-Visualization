@@ -1179,7 +1179,6 @@ const xAxis = d3.axisBottom(x)
 function drawCrimeTypePieChart(data) {
   const container = document.getElementById('d3-chartThree-wrapper');
   
-  // 1. 安全检查：如果容器不存在，或者宽度为0，直接不画，防止报错
   if (!container || container.clientWidth === 0 || container.clientHeight === 0) {
     console.warn("Chart container has no size yet, skipping draw.");
     return;
@@ -1194,7 +1193,6 @@ function drawCrimeTypePieChart(data) {
   const innerWidth = width - margin.left - margin.right;
   const innerHeight = height - margin.top - margin.bottom;
 
-  // 2. 二次安全检查：防止 margin 比容器本身还大
   if (innerWidth <= 0 || innerHeight <= 0) return;
 
   const svg = d3.select(container)
@@ -1205,13 +1203,11 @@ function drawCrimeTypePieChart(data) {
   const g = svg.append('g')
     .attr('transform', `translate(${margin.left},${margin.top})`);
 
-  // 颜色配置
   const gradientColors = [
     '#3200ac', '#4c00d4', '#7020ed', 
     '#9550fa', '#b480ff', '#ffffff'
   ];
 
-  // 标题
   svg.append('text')
     .text('Crime Types')
     .attr('x', margin.left)
@@ -1221,7 +1217,6 @@ function drawCrimeTypePieChart(data) {
     .attr('font-size', '16px')
     .attr('text-anchor', 'start');
 
-  // ===== 布局计算 =====
   const legendSectionWidth = innerWidth * 0.40; 
   const maxLabelWidth = legendSectionWidth - 20; 
   const pieSectionWidth = innerWidth * 0.60;
@@ -1233,16 +1228,29 @@ function drawCrimeTypePieChart(data) {
   const pieGroup = g.append('g')
     .attr('transform', `translate(${pieCenterX},${pieCenterY})`);
 
-  // ===== 绘制饼图 =====
   const total = d3.sum(data, d => d.value);
   const pie = d3.pie().sort(null).value(d => d.value);
+
+  // ===== 🌟 1. 定义两个 Arc 生成器：正常状态 和 浮起状态 =====
   const arc = d3.arc().innerRadius(0).outerRadius(radius);
-  const arcs = pieGroup.selectAll('.slice').data(pie(data)).enter().append('g').attr('class', 'slice');
+  const hoverArc = d3.arc().innerRadius(0).outerRadius(radius + 10); // 浮起时半径大 10px
+
+  const arcs = pieGroup.selectAll('.slice')
+    .data(pie(data))
+    .enter()
+    .append('g')
+    .attr('class', 'slice');
 
   arcs.append('path')
+    // ===== 🌟 2. 给扇形添加唯一的 class (slice-0, slice-1...) =====
+    // 这样我们才能在鼠标悬停文字时，通过 class 找到这个扇形
+    .attr('class', (d, i) => `pie-path slice-${i}`) 
     .attr('d', arc)
     .attr('fill', (d, i) => gradientColors[i % gradientColors.length])
-    .attr('stroke', '#000').attr('stroke-width', 1);
+    .attr('stroke', '#000')
+    .attr('stroke-width', 1)
+    // 加上缓动动画配置，让变大变小更丝滑
+    .style('transition', 'd 0.3s ease'); 
 
   arcs.append('text')
     .attr('transform', d => `translate(${arc.centroid(d)})`)
@@ -1250,10 +1258,13 @@ function drawCrimeTypePieChart(data) {
     .attr('dy', '0.35em')
     .attr('font-family', 'NYUTypeBold')
     .attr('font-size', '20px') 
+    // ===== 🌟 给百分比文字也加个 class，方便浮起时一起移动 (可选) =====
+    .attr('class', (d, i) => `pct-text pct-${i}`)
     .attr('fill', (d, i) => {
         const color = gradientColors[i % gradientColors.length];
         return color === '#ffffff' ? '#000000' : '#FFFFFF';
     })
+    .style('pointer-events', 'none') // 防止文字挡住鼠标事件
     .text(d => {
       const pct = total === 0 ? 0 : Math.round((d.data.value / total) * 100);
       return pct > 3 ? pct + '%' : ''; 
@@ -1261,7 +1272,6 @@ function drawCrimeTypePieChart(data) {
 
   // ===== 左侧文字图例 =====
   
-  // 预计算 Y 坐标
   let currentY = 0;
   const itemPositions = data.map(d => {
     const y = currentY;
@@ -1281,9 +1291,12 @@ function drawCrimeTypePieChart(data) {
     .enter()
     .append('g')
     .attr('class', 'legend-item')
-    .attr('transform', d => `translate(0, ${d.y})`);
+    // 🌟 存一下索引，方便事件调用
+    .attr('data-index', (d, i) => i) 
+    .attr('transform', d => `translate(0, ${d.y})`)
+    .style('cursor', 'pointer'); // 鼠标变手型，提示可交互
 
-  legendItems.append('text')
+  const legendTexts = legendItems.append('text')
     .text(d => d.label)
     .attr('x', 0)
     .attr('y', 0)
@@ -1291,7 +1304,78 @@ function drawCrimeTypePieChart(data) {
     .attr('font-family', (d, i) => i < 3 ? 'NYUTypeBold' : 'NYUTypeMedium') 
     .attr('font-size', '32px') 
     .attr('fill', (d, i) => gradientColors[i % gradientColors.length])
-    .call(wrap, maxLabelWidth); 
+    .call(wrap, maxLabelWidth);
+
+  // ===== 🌟 3. 添加鼠标交互事件 (Hover Effects) =====
+  
+  legendItems
+    .on('mouseover', function(event, d) {
+      // D3 v6/v7 写法: (event, d)
+      // D3 v4/v5 写法: (d, i) -> 如果你用老版本报错，请改回 function(d, i) 并用 i
+
+      // 获取当前 hover 的索引
+      // 如果你的 D3 版本较新，直接用 event.currentTarget 获取 DOM
+      // 为了兼容性，这里用 d3.select(this)
+      const index = d3.select(this).attr('data-index');
+
+      // 1. 文字浮起效果 (向右移动 10px，增加亮度/透明度)
+      d3.select(this).select('text')
+        .transition().duration(200)
+        .attr('transform', 'translate(5, 0)') // 向右移
+        .style('opacity', 1);
+
+      // 2. 对应的饼图扇形浮起 (半径变大)
+      pieGroup.select(`.slice-${index}`)
+        .transition().duration(200)
+        .ease(d3.easeElasticOut) // 加一点弹性效果
+        .attr('d', hoverArc);
+
+      // 3. (可选) 对应的百分比文字也跟着移出去一点
+      pieGroup.select(`.pct-${index}`)
+        .transition().duration(300)
+        .attr('transform', function() {
+            // 需要重新计算 hoverArc 的中心点
+            // 这里为了简单，我们只需找到对应的数据
+            const sliceData = pie(data)[index];
+            return `translate(${hoverArc.centroid(sliceData)})`;
+        });
+        
+      // 4. (可选) 让其他未选中的稍微变暗，突出当前选中的
+      legendItems.filter(function() { 
+          return d3.select(this).attr('data-index') !== index; 
+      }).style('opacity', 0.4);
+      
+      pieGroup.selectAll('.pie-path').filter(function(d, i) {
+          return i != index;
+      }).style('opacity', 0.4);
+
+    })
+    .on('mouseout', function(event, d) {
+      const index = d3.select(this).attr('data-index');
+
+      // 1. 文字复位
+      d3.select(this).select('text')
+        .transition().duration(200)
+        .attr('transform', 'translate(0, 0)') // 回原位
+        .style('opacity', 1);
+
+      // 2. 扇形复位 (变回普通半径)
+      pieGroup.select(`.slice-${index}`)
+        .transition().duration(300)
+        .attr('d', arc);
+        
+      // 3. 百分比文字复位
+      pieGroup.select(`.pct-${index}`)
+        .transition().duration(300)
+        .attr('transform', function() {
+            const sliceData = pie(data)[index];
+            return `translate(${arc.centroid(sliceData)})`;
+        });
+
+      // 4. 恢复所有元素的透明度
+      legendItems.style('opacity', 1);
+      pieGroup.selectAll('.pie-path').style('opacity', 1);
+    });
 }
 
 // 辅助函数：Wrap
