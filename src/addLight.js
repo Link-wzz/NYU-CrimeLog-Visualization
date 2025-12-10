@@ -30,7 +30,7 @@ export function addLight() {
   // 模型越小，Bias 越敏感。如果发现影子和楼底有空隙，把这个数字调得更接近 0
   sun.shadow.normalBias = 0; // 一个对于小模型很安全的数值
   //这里问老师:
-  // sun.shadow.bias = -0.0002;
+  // sun.shadow.bias = 0.0002;
 
   // 阴影柔和度 
   sun.shadow.radius = 8; 

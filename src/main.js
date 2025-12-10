@@ -1,16 +1,52 @@
 import './style.css'
-
 import Stats from 'three/examples/jsm/libs/stats.module.js'
-
-import * as THREE from 'three'  // 引入threejs 库
-import { addDefaultMeshes, addSandardMesh } from './addDefaultMeshes'
+import * as THREE from 'three'
 import { addLight } from './addLight'
 import Model from './model'
 import { InteractionManager } from 'three.interactive'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import gsap from 'gsap'
+
+// ------------------ 全局变量 & 配置 ------------------
 const raycaster = new THREE.Raycaster()
 const mouse = new THREE.Vector2()
+
+// 设置平移视角限制
+const PAN_LIMITS = {
+  minX: -2.5, 
+  maxX: 2.5,  
+  minZ: -0.5, 
+  maxZ: 0.5   
+}
+
+const clock = new THREE.Clock()
+const meshes = {}
+const mixers = []
+let MABuildings = null
+let activeHoverBuilding = null 
+
+// ------------------ 场景 & 渲染器 & 相机 ------------------
+const scene = new THREE.Scene()
+scene.background = new THREE.Color(0xffffff)
+
+const renderer = new THREE.WebGLRenderer({ 
+  antialias: true,            
+  powerPreference: "high-performance" 
+})
+renderer.shadowMap.enabled = true
+renderer.shadowMap.type = THREE.PCFSoftShadowMap
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5))
+renderer.setSize(window.innerWidth, window.innerHeight)
+renderer.outputColorSpace = THREE.SRGBColorSpace
+renderer.toneMapping = THREE.ACESFilmicToneMapping
+renderer.toneMappingExposure = 1.2
+document.body.appendChild(renderer.domElement)
+
+const camera = new THREE.PerspectiveCamera(9, window.innerWidth / window.innerHeight, 0.1, 1000)
+
+// ------------------ 监测器 & UI ------------------
+const stats = new Stats()
+document.body.appendChild(stats.dom)
 
 const tooltip = document.createElement('div')
 tooltip.className = 'building-tooltip'
@@ -19,249 +55,105 @@ tooltip.style.pointerEvents = 'none'
 tooltip.style.display = 'none'
 document.body.appendChild(tooltip)
 
-// hover 状态
-let hoverTimer = null
-let hoverTarget = null // { rawName, displayName, crimeCount, part }
-
-// ------------------ 场景 & 渲染器 & 相机 ------------------
-
-const scene = new THREE.Scene()
-scene.background = new THREE.Color(0xffffff)
-
-const renderer = new THREE.WebGLRenderer({ 
-  antialias: true,            // 1. 开启抗锯齿 (边缘平滑)
-  powerPreference: "high-performance" // 2. 提示浏览器使用独显 (提升性能)
-})
-renderer.shadowMap.enabled = true
-renderer.shadowMap.type = THREE.PCFSoftShadowMap
-renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
-
-renderer.setSize(window.innerWidth, window.innerHeight)
-renderer.outputColorSpace = THREE.SRGBColorSpace
-renderer.toneMapping = THREE.ACESFilmicToneMapping
-renderer.toneMappingExposure = 1.2; // 稍微调亮一点以配合 Filmic
-
-// document.body.appendChild(renderer.domElement)
-
-const camera = new THREE.PerspectiveCamera(
-  10,
-  window.innerWidth / window.innerHeight,
-  0.1,
-  1000
-)
-
-
-// 【新增】初始化 FPS 监测器
-const stats = new Stats()
-// 默认显示 FPS，如果想看渲染时间可以调用 stats.showPanel(1)
-document.body.appendChild(stats.dom)
-
-
-// 移动 camera
-camera.position.set(5, 7,-5)  // 可以自己微调
-
-
-// 只需要 append 一次，否则会出现两个 canvas
-renderer.setSize(window.innerWidth, window.innerHeight)
-document.body.appendChild(renderer.domElement)
-
 // ------------------ 交互控制 OrbitControls ------------------
-
 const controls = new OrbitControls(camera, renderer.domElement)
 
-controls.target.set(0.4, 2.4, 0)   // 模型中心
-controls.update()              // 刷新
+// 🌟 初始化配置
+controls.enabled = false;     // 入场动画期间禁用交互
+controls.enableDamping = true;
+controls.dampingFactor = 0.1;
+controls.enableRotate = false; // 初始禁止旋转
+controls.enableZoom = false;
+controls.enablePan = true;
 
-
-// 惯性阻尼可以保留
-controls.enableDamping = true
-controls.dampingFactor = 0.1
-
-// ✅ 不允许旋转 & 缩放，只允许平移
-controls.enableRotate = false
-controls.enableZoom = false
-controls.enablePan = true
-
-// ✅ 左键 = 平移，中键/右键不用
+// 设置按键映射
 controls.mouseButtons = {
   LEFT: THREE.MOUSE.PAN,
-  MIDDLE: THREE.MOUSE.PAN,   // 随便映射一下，实际上也用不到
+  MIDDLE: THREE.MOUSE.PAN,
   RIGHT: THREE.MOUSE.PAN,
 }
 
-// ✅ 为了防止“拖着拖着把相机拉太远”，也可以锁一下距离（可选）
-controls.minDistance = controls.maxDistance = camera.position.length()
+const interactionManager = new InteractionManager(renderer, camera, renderer.domElement)
 
-// ------------------ 其他全局对象 ------------------
-
-const meshes = {}
-const lights = {}
-const mixers = []
-const clock = new THREE.Clock()
-
-const interactionManager = new InteractionManager(
-  renderer,
-  camera,
-  renderer.domElement
-)
-
-// 把模型对象提升到外层作用域，方便之后在别的地方访问
-let MABuildings = null
-
+// ------------------ 核心初始化 ------------------
 init()
 
 function init() {
-  // 灯光
-  lights.default = addLight()
-  scene.add(lights.default)
-
+  scene.add(addLight())
   addGround()
   loadModel()
   animate()
 }
 
-window.addEventListener('mousemove', onMouseMove)
+// ------------------ 入场动画逻辑 ------------------
 
-function onMouseMove(event) {
-  // 标准化鼠标坐标（-1 ~ 1）
-  mouse.x = (event.clientX / window.innerWidth) * 2 - 1
-  mouse.y = -(event.clientY / window.innerHeight) * 2 + 1
+function startEntranceAnimation() {
+  // 1. 设置【上帝视角】初始状态：垂直向下看
+  camera.position.set(40,30, -6); 
+  controls.target.set(1, 1, 2); // 初始看地面
+  controls.update();
 
-  if (!MABuildings || !meshes['MABuildings']) {
-    hideTooltip()
-    return
-  }
+  const timeline = gsap.timeline();
 
-  // 从相机发射射线
-  raycaster.setFromCamera(mouse, camera)
+  // 2. 协同动画：降落并平移至交互视角
+  timeline.to(camera.position, {
+    x: 4,
+    y: 7.5,
+    z: -4,
+    duration: 3,
+    ease: "power2.inOut"
+  }, 0);
 
-  // 与整棵 MABuildings 场景树做相交检测
-  const root = meshes['MABuildings']
-  const intersects = raycaster.intersectObject(root, true)
-
-  if (!intersects.length) {
-    // 鼠标没指向任何楼 → 清除 hover / 隐藏 tooltip
-    hoverTarget = null
-    clearTimeout(hoverTimer)
-    hideTooltip()
-    return
-  }
-
-  const firstHit = intersects[0].object
-  const info = MABuildings.getBuildingInfoFromObject(firstHit)
-
-  if (!info) {
-    hoverTarget = null
-    clearTimeout(hoverTimer)
-    hideTooltip()
-    return
-  }
-
-  // 如果还是同一栋楼，只更新 tooltip 位置即可
-  if (hoverTarget && hoverTarget.part === info.part) {
-    // 如果 tooltip 已经显示，跟着鼠标移动
-    if (tooltip.style.display === 'block') {
-      positionTooltip(event.clientX, event.clientY)
+  //x: 向下运动
+  timeline.to(controls.target, {
+    x: -0.7, 
+    y: 1.9, 
+    z: 1,
+    duration: 3,
+    ease: "power2.inOut",
+    onUpdate: () => {
+      // 动画每帧都强制控制器更新
+      controls.update();
+    },
+    onComplete: () => {
+      // 🌟 动画结束后，开启交互并执行锁定逻辑
+      controls.enabled = true;
+      lockControls(); 
+      console.log("入场动画完成，视角已锁定");
     }
-    return
-  }
-
-  // 换了一栋楼：重置计时器
-  hoverTarget = info
-  clearTimeout(hoverTimer)
-  hideTooltip()
-
-  hoverTimer = setTimeout(() => {
-    // 500ms 后仍然是这个 target，就显示 tooltip
-    if (!hoverTarget || hoverTarget.part !== info.part) return
-    showTooltip(info, event.clientX, event.clientY)
-  }, 500)
+  }, 0);
 }
 
-function showTooltip(info, x, y) {
-  tooltip.innerHTML = `
-    <div><strong>${info.displayName}</strong></div>
-    <div>Records: ${info.crimeCount}</div>
-  `
-  positionTooltip(x, y)
-  tooltip.style.display = 'block'
+// 视角锁定函数：动画结束后执行
+function lockControls() {
+  controls.update();
+  const currentPolar = controls.getPolarAngle();
+  const currentAzimuth = controls.getAzimuthalAngle();
+
+  // 此时锁死角度，不再干扰动画
+  controls.minPolarAngle = currentPolar;
+  controls.maxPolarAngle = currentPolar;
+  controls.minAzimuthAngle = currentAzimuth;
+  controls.maxAzimuthAngle = currentAzimuth;
+
+  controls.enableRotate = false;
+  controls.update();
 }
 
-function positionTooltip(x, y) {
-  const offset = 12
-  tooltip.style.left = `${x + offset}px`
-  tooltip.style.top = `${y + offset}px`
-}
+// ------------------ 模型与地面加载 ------------------
 
-function hideTooltip() {
-  tooltip.style.display = 'none'
-}
-
-//绘制地面
 function addGround() {
-  //create the ground
   const groundGeometry = new THREE.PlaneGeometry(50, 50)
-
-  // 2. 创建材质：使用 StandardMaterial 以便接收光照和阴影
-  // 颜色设为稍稍带点灰的白 (0xf5f5f5)，这比纯白 (0xffffff) 更能衬托柔和的阴影
-  // 粗糙度设为 1，金属度设为 0，打造哑光石膏地面效果
   const groundMaterial = new THREE.MeshStandardMaterial({
     color: 0xe0e0e0,
     roughness: 1.0,
     metalness: 0.0,
   })
-
-  // 3. 创建网格 (Mesh)
   const ground = new THREE.Mesh(groundGeometry, groundMaterial)
-
-  // 4. 调整姿态
-  // 默认平面是竖着的 (XY平面)，我们需要绕 X 轴旋转 -90 度让它躺平在 XZ 平面上
   ground.rotation.x = -Math.PI / 2
-  
-  // 将位置稍微向下移动一点点 (-0.01)，防止和建筑底部的面重叠闪烁 (Z-fighting)
-  ground.position.y = 0.001
-
-  // 【关键】告诉地面它需要接收别人投射的阴影
+  ground.position.y = -0.002
   ground.receiveShadow = true
-
-  // 5. 添加到场景
   scene.add(ground)
-}
-
-
-// ------------------ 载入 GLB 模型 + 应用犯罪数据 ------------------
-
-// 读取 crime-summary，把次数写进模型里
-async function applyCrimeDataToModel(model) {
-  try {
-    // ✅ 如果你的 summary 叫别的名字，在这里改路径就行
-    const res = await fetch('/crime-data/crime-summary-2024-2025.json')
-    if (!res.ok) {
-      console.error('加载 crime summary 失败:', res.status)
-      return
-    }
-
-    const summary = await res.json()
-    const { minCount, maxCount } = summary.meta
-
-    // 设定颜色映射区间（次数少 → 浅紫，次数多 → 深紫）
-    model.setCrimeScale({
-      min: minCount,
-      max: maxCount,
-    })
-
-    // 把每个 GLB 分件的次数写进去
-    for (const [glbName, count] of Object.entries(summary.buildings)) {
-      model.setCrimeCountByName(glbName, count)
-    }
-
-    // 更新所有楼的颜色
-    model.updateAllBuildingColors()
-
-    console.log('✅ 已把犯罪数据应用到模型')
-  } catch (err) {
-    console.error('应用犯罪数据时出错:', err)
-  }
 }
 
 function loadModel() {
@@ -272,37 +164,89 @@ function loadModel() {
     meshes: meshes,
     scale: new THREE.Vector3(0.2, 0.2, 0.2),
     position: new THREE.Vector3(0, 0, 0),
-    animationState: false,
-    mixers: mixers,
     replace: true,
-
     enableBuildingMode: true,
-
     crimeScale: { min: 0, max: 100 },
     colorLow: '#EBD7FF',
     colorHigh: '#4A148C',
-
     callback: () => {
-      console.log('模型加载完成，开始应用犯罪数据...')
-      applyCrimeDataToModel(MABuildings) // 你之前写过的函数
+      console.log('模型加载完成');
+      applyCrimeDataToModel(MABuildings);
+      startEntranceAnimation(); // 🌟 触发降落动画
     },
   })
-
   MABuildings.init()
 }
 
+async function applyCrimeDataToModel(model) {
+  try {
+    const res = await fetch('/crime-data/crime-summary-2024-2025.json')
+    if (!res.ok) return
+    const summary = await res.json()
+    model.setCrimeScale({ min: summary.meta.minCount, max: summary.meta.maxCount })
+    for (const [glbName, count] of Object.entries(summary.buildings)) {
+      model.setCrimeCountByName(glbName, count)
+    }
+    model.updateAllBuildingColors()
+  } catch (err) {
+    console.error('应用数据出错:', err)
+  }
+}
+
+// ------------------ 交互处理 ------------------
+
+window.addEventListener('mousemove', (event) => {
+  mouse.x = (event.clientX / window.innerWidth) * 2 - 1
+  mouse.y = -(event.clientY / window.innerHeight) * 2 + 1
+
+  if (!MABuildings || !meshes['MABuildings']) return
+  raycaster.setFromCamera(mouse, camera)
+  const root = meshes['MABuildings']
+  const intersects = raycaster.intersectObject(root, true)
+
+  if (intersects.length > 0) {
+    const firstHit = intersects[0].object
+    const info = MABuildings.getBuildingInfoFromObject(firstHit)
+
+    if (info && info.part) {
+      if (activeHoverBuilding !== info.part) {
+        if (activeHoverBuilding) {
+          gsap.to(activeHoverBuilding.group.position, { y: activeHoverBuilding.originalY, duration: 0.3 })
+        }
+        activeHoverBuilding = info.part
+        gsap.to(activeHoverBuilding.group.position, { y: activeHoverBuilding.originalY + 0.1, duration: 0.3 })
+      }
+      showTooltip(info, event.clientX, event.clientY)
+    }
+  } else {
+    if (activeHoverBuilding) {
+      gsap.to(activeHoverBuilding.group.position, { y: activeHoverBuilding.originalY, duration: 0.3 })
+      activeHoverBuilding = null
+    }
+    hideTooltip()
+  }
+})
+
+function showTooltip(info, x, y) {
+  tooltip.innerHTML = `<div><strong>${info.displayName}</strong></div><div>Records: ${info.crimeCount}</div>`
+  tooltip.style.left = `${x + 12}px`
+  tooltip.style.top = `${y + 12}px`
+  tooltip.style.display = 'block'
+}
+
+function hideTooltip() { tooltip.style.display = 'none' }
 
 // ------------------ 动画循环 ------------------
 
 function animate() {
   requestAnimationFrame(animate)
-stats.update()
-  // 如果你以后要用动画 mixer，这里可以打开：
-  // const delta = clock.getDelta()
-  // mixers.forEach((m) => m.update(delta))
+  if (stats) stats.update()
 
   controls.update()
+
+  // 1. 坐标强行纠偏限制
+  controls.target.x = THREE.MathUtils.clamp(controls.target.x, PAN_LIMITS.minX, PAN_LIMITS.maxX)
+  controls.target.z = THREE.MathUtils.clamp(controls.target.z, PAN_LIMITS.minZ, PAN_LIMITS.maxZ)
+
   renderer.render(scene, camera)
 }
-
-animate()

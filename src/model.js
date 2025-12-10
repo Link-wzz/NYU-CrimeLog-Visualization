@@ -42,12 +42,13 @@ import {
 
 // 🧱 一个小的“建筑部分”类，用来封装每栋楼的状态
 class BuildingPart {
-	constructor(meshes, name) {
-		// 这一栋楼里所有的 Mesh（通常一个楼是一个 Group，内部有多个 mesh）
-		this.meshes = meshes
-		this.name = name
-		this.crimeCount = 0
-	}
+	constructor(meshes, name, group) { // 新增 group 参数
+        this.meshes = meshes
+        this.name = name
+        this.group = group // 保存对 Group 的引用
+        this.crimeCount = 0
+        this.originalY = group.position.y // 记录初始 Y 坐标
+    }
 
 	// 设置犯罪次数并根据犯罪次数更新颜色
 	setCrimeCount(count, scaleConfig) {
@@ -297,32 +298,28 @@ export default class Model {
 	 */
 _setupSingleBuilding(group) {
   const buildingName = group.name || 'UNNAMED_BUILDING'
-
   const meshes = []
 
-  // 先收集 mesh，并给它们一个 Phong 材质
   group.traverse((child) => {
     if (child.isMesh) {
       const mat = new MeshPhongMaterial({
-        color: this.colorLow.clone(),        // 初始颜色：低犯罪浅紫
-        shininess: 40,                       // 高光强度，可以自己再调
-        specular: new Color('#444444'),      // 高光颜色
+        color: this.colorLow.clone(),
+        shininess: 40,
+        specular: new Color('#444444'),
       })
-
       child.material = mat
       child.castShadow = true
       child.receiveShadow = true
-
       meshes.push(child)
     }
   })
 
   if (meshes.length === 0) return
 
-  const part = new BuildingPart(meshes, buildingName)
+  // 【🌟修改点🌟】传入 group 对象
+  const part = new BuildingPart(meshes, buildingName, group)
   this.buildings.set(buildingName, part)
 
-  // ✅ 把楼的信息挂到每个 mesh 上，供 Raycaster 使用
   meshes.forEach((m) => {
     m.userData.buildingName = buildingName
     m.userData.buildingPart = part
