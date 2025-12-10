@@ -84,7 +84,7 @@ const camera = new THREE.PerspectiveCamera(9, window.innerWidth / window.innerHe
 
 // 性能监测与 Tooltip
 const stats = new Stats()
-document.body.appendChild(stats.dom)
+// document.body.appendChild(stats.dom)
 
 const tooltip = document.createElement('div')
 tooltip.className = 'building-tooltip'
@@ -416,6 +416,29 @@ if (typeof drawMonthlyCrimeTrend === 'function') {
     }, 100); // 稍微给多一点延时(比如100ms)，确保 DOM 确实渲染完了
   }
 }
+
+
+// ===============================================
+// 🌟 3D 场景开场白屏过渡 (White Reveal)
+// ===============================================
+function initHeroFadeIn() {
+  // 这里的 .hero-fade-overlay 初始在 CSS 里是 opacity: 1 (白色)
+  gsap.to(".hero-fade-overlay", {
+    opacity: 0,       // 变成透明
+    duration: 0.5,    // 动画时长 500ms
+    delay: 0.5,       // 🌟 延迟 500ms 再开始 (给 3D 模型一点加载渲染的时间)
+    ease: "power2.out",
+    onComplete: () => {
+      // 动画结束后，彻底隐藏该元素，避免阻挡交互
+      gsap.set(".hero-fade-overlay", { display: "none" });
+    }
+  });
+}
+
+// 调用函数
+// 如果你有 3D 模型的 onLoad 回调，放在那里效果最好；
+// 如果没有，直接在这里调用也能达到很好的“视觉遮挡”效果。
+initHeroFadeIn();
 
 // 辅助函数：将时间字符串解析为 0-3 的桶
 function parseTimeBin(timeStr) {
@@ -1444,10 +1467,13 @@ function drawMonthlyCrimeTrend(monthlyData) {
 // =========================================================
 
 function startEntranceAnimation() {
+  // 🌟 1. 关键：动画开始前，彻底关掉控制器，防止它干扰 GSAP 运镜
+  controls.enabled = false; 
+
   // 设置【上帝视角】初始状态
   camera.position.set(40, 30, -6); 
   controls.target.set(1, 1, 2); 
-  controls.update();
+  // 此时不需要 controls.update()，因为我们已经关掉了它，且马上要用 GSAP 接管
 
   const timeline = gsap.timeline();
 
@@ -1467,17 +1493,18 @@ function startEntranceAnimation() {
     z: 1,
     duration: 3,
     ease: "power2.inOut",
-    onUpdate: () => {
-      controls.update();
-    },
+    
+    // 🌟 2. 删除 onUpdate，因为 controls.enabled = false 时，update 没意义，且会导致抖动
+    // onUpdate: () => { controls.update(); }, <--- 删掉这行
+
     onComplete: () => {
+      // 🌟 3. 动画结束：启用控制器，并同步状态
       controls.enabled = true;
       lockControls(); 
       console.log("入场动画完成，视角已锁定");
     }
   }, 0);
 }
-
 function lockControls() {
   controls.update();
   const currentPolar = controls.getPolarAngle();
