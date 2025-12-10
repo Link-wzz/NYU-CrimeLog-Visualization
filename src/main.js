@@ -7,6 +7,8 @@ import { InteractionManager } from 'three.interactive'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import gsap from 'gsap'
 import * as d3 from 'd3'
+import { ScrollTrigger } from "gsap/ScrollTrigger";
+gsap.registerPlugin(ScrollTrigger);
 
 // =========================================================
 // 1. 全局配置与变量
@@ -28,6 +30,19 @@ const PAN_LIMITS = {
   maxX: 2.5,  
   minZ: -1, 
   maxZ: 1   
+}
+
+//辅助函数
+function formatSlugToMonthLabel(slug) {
+  if (!slug) return '';
+  const parts = slug.split('-');
+  const month = parts[0]; // 获取月份部分，例如 'september'
+  
+  // 🌟 修改：只取前 3 个字符
+  const shortMonth = month.substring(0, 3); 
+  
+  // 首字母大写 + 后两个小写 (例如: 'sep' -> 'Sep')
+  return shortMonth.charAt(0).toUpperCase() + shortMonth.slice(1).toLowerCase();
 }
 
 // 月份 Slugs (对应 CSV 文件名)
@@ -190,21 +205,36 @@ function bindOptionClicks() {
 async function updateModelByTimeRange(value) {
   console.log(`正在切换时间范围: ${value}...`);
 
-  // 更新图表标题上的文字
-  const chartLabel = document.getElementById('chart-time-label');
-  if (chartLabel) {
-      if (value === '12') chartLabel.innerText = '(past 12 months)';
-      else if (value === '6') chartLabel.innerText = '(past 6 months)';
-      else if (value === '3') chartLabel.innerText = '(past 3 months)';
-      else chartLabel.innerText = `(${value})`;
-  }
+  // 1. 计算要显示的文字
+  let labelText = '';
+  if (value === '12') labelText = '(past 12 months)';
+  else if (value === '6') labelText = '(past 6 months)';
+  else if (value === '3') labelText = '(past 3 months)';
+  else labelText = `(${value})`;
 
-  // 即使是 '12'，我们也去 fetch CSV，因为我们需要 Time 数据画图表
-  // Summary JSON 里没有时间数据
+  // 2. 更新 HTML 页面上所有的 Label (使用新定义的唯一 ID)
+  
+  // 更新文章开头的那段 "In the past 12 months..."
+  const introLabel = document.getElementById('dynamic-time-text');
+  if (introLabel) introLabel.innerText = labelText.replace(/[()]/g, ''); // 去掉括号
+
+  // 更新图表 1 (Time)
+  const labelTime = document.getElementById('label-chart-time');
+  if (labelTime) labelTime.innerText = labelText;
+
+  // 更新图表 2 (Hotspots) 🌟 修复这一个
+  const labelHotspot = document.getElementById('label-chart-hotspot');
+  if (labelHotspot) labelHotspot.innerText = labelText;
+
+  // 更新图表 3 (Types)
+  const labelTypes = document.getElementById('label-chart-types');
+  if (labelTypes) labelTypes.innerText = labelText;
+
+
+  // 3. 处理数据获取逻辑 (保持你原有的逻辑不变)
   let targetSlugs = [];
-
   if (value === '12') {
-    targetSlugs = monthSlugs.slice(0, 12); // 取最近12个月
+    targetSlugs = monthSlugs.slice(0, 12);
   } else if (value === '3') {
     targetSlugs = monthSlugs.slice(0, 3);
   } else if (value === '6') {
@@ -213,7 +243,7 @@ async function updateModelByTimeRange(value) {
     targetSlugs = [value];
   }
 
-  // 统一走 CSV 计算流程
+  // 4. 重新获取数据并重绘所有图表
   await fetchAndCalcCsvData(targetSlugs);
 }
 
@@ -230,49 +260,62 @@ async function fetchAndCalcCsvData(slugs) {
   if (!mapping) return;
 
   // 2. 初始化统计容器
-  const countByGlb = {};          // 地点统计 (用于 3D 地图 和 Hotspot Chart)
-  const timeBins = [0, 0, 0, 0];  // 时间统计 (用于 Time Chart)
-  const countByType = {};         // 类型统计 (用于 Pie Chart 和 Top Crime Stat)
+  const countByGlb = {};          // 用于 Hotspots Chart & 3D Map
+  const timeBins = [0, 0, 0, 0];  // 用于 Time Chart
+  const countByType = {};         // 用于 Crime Types Chart
 
-  // 3. 并行获取所有选中的 CSV 文件
+  // 🌟 新增：用于存储每月总数的数组 (Chart 4 数据源)
+  const monthlyTrendData = []; 
+
+  // 3. 并行获取所有 CSV
   const promises = slugs.map(slug => fetch(`/crime-data/crime-log-${slug}.csv`));
   const responses = await Promise.all(promises);
 
   // 4. 循环处理每个文件
-  for (const res of responses) {
+  // 注意：这里用 for 循环是为了方便拿到 index (i)，从而获取对应的 slug
+  for (let i = 0; i < responses.length; i++) {
+    const res = responses[i];
+    const currentSlug = slugs[i]; // 获取文件名，例如 'dec-2024'
+
     if (!res.ok) continue; 
+    
     const text = await res.text();
     const rows = parseCSV(text);
 
+    // =======================================================
+    // 🌟 关键点 1：在这里统计“当前这个月”的总数 (Chart 4)
+    // =======================================================
+    const monthLabel = formatSlugToMonthLabel(currentSlug); // Dec
+    monthlyTrendData.push({
+      label: monthLabel,
+      value: rows.length // 这个月的行数 = 犯罪总数
+    });
+
+    // 继续逐行处理其他数据
     rows.forEach(row => {
-      // --- A. 统计地点 ---
+      // --- A. 地点统计 ---
       const rawBuilding = row.col5; 
       const rawArea = row.col6;
       if (rawBuilding) {
         const b = rawBuilding.trim().toUpperCase();
         const a = (rawArea || '').trim().toUpperCase();
         const keyBA = `${b}||${a}`;
-        
-        // 尝试匹配 mapping
         let match = mapping.mappingByBA.get(keyBA);
         if (!match) match = mapping.mappingByB.get(b);
-        
-        // 如果匹配成功且标记为 include
         if (match && match.include?.toLowerCase() === 'yes' && match.glb_name) {
-          const name = match.glb_name;
-          countByGlb[name] = (countByGlb[name] || 0) + 1;
+          countByGlb[match.glb_name] = (countByGlb[match.glb_name] || 0) + 1;
         }
       }
 
-      // --- B. 统计时间 ---
+      // --- B. 时间统计 ---
       const rawTime = row.col2 || row.col3; 
       const binIndex = parseTimeBin(rawTime);
       if (binIndex !== -1) timeBins[binIndex]++;
 
-      // --- C. 统计犯罪类型 (需归一化) ---
+      // --- C. 类型统计 ---
       let rawType = row.col4; 
       if (rawType) {
-        const cleanType = normalizeCrimeType(rawType); // 确保你有这个函数
+        const cleanType = normalizeCrimeType(rawType); 
         if (cleanType) {
           countByType[cleanType] = (countByType[cleanType] || 0) + 1;
         }
@@ -281,20 +324,17 @@ async function fetchAndCalcCsvData(slugs) {
   }
 
   // ============================================
-  // 5. 更新 3D 模型 (MABuildings)
+  // 5. 更新 3D 模型
   // ============================================
   if (typeof MABuildings !== 'undefined' && MABuildings.resetAllCounts) {
       MABuildings.resetAllCounts();
-      
       const counts = Object.values(countByGlb);
       let min = 0, max = 0;
       if (counts.length > 0) {
         min = Math.min(...counts);
         max = Math.max(...counts);
       }
-      
       MABuildings.setCrimeScale({ min, max });
-      
       for (const [name, count] of Object.entries(countByGlb)) {
         MABuildings.setCrimeCountByName(name, count);
       }
@@ -302,81 +342,81 @@ async function fetchAndCalcCsvData(slugs) {
   }
 
   // ============================================
-  // 6. 更新 HTML 统计数字 (Stat Blocks)
+  // 6. 更新 HTML 统计数字
   // ============================================
-
-  // --- A. 总数 (Total Incidents) ---
   const totalCrimes = Object.values(countByGlb).reduce((a, b) => a + b, 0);
   const totalDiv = document.getElementById('stat-total-count');
   if (totalDiv) totalDiv.innerText = totalCrimes;
 
-  // --- B. 准备地点数据 (排序: 多 -> 少) ---
+  // Top Location
   const hotspotData = Object.entries(countByGlb).map(([name, count]) => ({
-    name: name,
-    count: count
-  }));
-  hotspotData.sort((a, b) => b.count - a.count);
+    name: name, count: count
+  })).sort((a, b) => b.count - a.count);
 
-  // --- 更新 UI: 最高发地点 ---
   const topLocDiv = document.getElementById('stat-top-location');
   if (topLocDiv) {
-    if (hotspotData.length > 0) {
-      // 简单美化：把下划线换成空格，例如 "OTHMER_HALL" -> "OTHMER HALL"
-      const displayName = hotspotData[0].name.replace(/_/g, ' '); 
-      topLocDiv.innerText = displayName;
-    } else {
-      topLocDiv.innerText = "N/A";
-    }
+    topLocDiv.innerText = hotspotData.length > 0 ? hotspotData[0].name.replace(/_/g, ' ') : "N/A";
   }
 
-  // --- C. 准备类型数据 (排序: 多 -> 少) ---
+  // Top Crime Type
   const sortedTypes = Object.entries(countByType)
     .map(([label, value]) => ({ label, value }))
     .sort((a, b) => b.value - a.value);
 
-  // --- 更新 UI: 最高发犯罪类型 ---
   const topCrimeDiv = document.getElementById('stat-top-crime');
   if (topCrimeDiv) {
-    if (sortedTypes.length > 0) {
-      topCrimeDiv.innerText = sortedTypes[0].label;
-    } else {
-      topCrimeDiv.innerText = "N/A";
-    }
+    topCrimeDiv.innerText = sortedTypes.length > 0 ? sortedTypes[0].label : "N/A";
   }
 
+  // 获取当前的 label (例如 "(past 12 months)")
+  // 注意：我们现在用的是 Chart 1 的 Label 作为基准
+  const currentLabelText = document.getElementById('label-chart-time') 
+    ? document.getElementById('label-chart-time').innerText 
+    : '(past 12 months)';
+
   // ============================================
-  // 7. 绘制三个图表
+  // 7. 绘制所有图表
   // ============================================
 
   // Chart 1: Time of Day
-  if (typeof drawTimeOfDayChart === 'function') {
-    drawTimeOfDayChart(timeBins);
-  }
+  if (typeof drawTimeOfDayChart === 'function') drawTimeOfDayChart(timeBins);
 
-  // Chart 2: Top Locations (Hotspots)
-  // 使用上面排好序的 hotspotData
-  if (typeof drawTopCrimeHotspotsChart === 'function') {
-    drawTopCrimeHotspotsChart(hotspotData);
-  }
+  // Chart 2: Hotspots
+  if (typeof drawTopCrimeHotspotsChart === 'function') drawTopCrimeHotspotsChart(hotspotData, currentLabelText);
 
-  // Chart 3: Crime Types Pie Chart (Top 5 + Other)
-  // 取前5名
+  // Chart 3: Types (Top 5 + Other)
   const top5 = sortedTypes.slice(0, 5);
-  // 计算剩余的 Other
   const otherCount = sortedTypes.slice(5).reduce((sum, item) => sum + item.value, 0);
-  
-  if (otherCount > 0) {
-    top5.push({ label: 'Other', value: otherCount });
+  if (otherCount > 0) top5.push({ label: 'Other', value: otherCount });
+
+  if (typeof drawCrimeTypePieChart === 'function') {
+    setTimeout(() => { drawCrimeTypePieChart(top5); }, 50);
   }
 
-  // 调用之前修改好的 D3 Pie Chart 函数
-  if (typeof drawCrimeTypePieChart === 'function') {
-    // 稍微加个延时，确保 React/DOM 容器已经准备好宽度 (可选，防止宽度为0的报错)
+  // =======================================================
+  // 🌟 关键点 2：处理 Chart 4 数据并调用画图
+  // =======================================================
+  
+  // 反转数组：因为 CSV 通常是 [Dec, Nov, Oct...]，但折线图时间轴需要 [Oct, Nov, Dec...]
+  const trendDataReversed = [...monthlyTrendData].reverse();
+
+if (typeof drawMonthlyCrimeTrend === 'function') {
     setTimeout(() => {
-        drawCrimeTypePieChart(top5);
-    }, 50);
+       drawMonthlyCrimeTrend(trendDataReversed, currentLabelText); 
+
+       // =======================================================
+       // 🌟 关键新增：图表画完了，页面高度变了，强制 GSAP 刷新坐标！
+       // =======================================================
+       // 告诉 ScrollTrigger：“页面布局变了，请重新计算所有触发点的位置”
+       // 如果不加这一行，底部的文字会被认为“已经划过去了”，所以不播放动画。
+       import("gsap/ScrollTrigger").then(({ ScrollTrigger }) => {
+          ScrollTrigger.refresh();
+       });
+
+    }, 100); // 稍微给多一点延时(比如100ms)，确保 DOM 确实渲染完了
   }
 }
+
 // 辅助函数：将时间字符串解析为 0-3 的桶
 function parseTimeBin(timeStr) {
   if (!timeStr) return -1;
@@ -490,6 +530,58 @@ function addGround() {
   ground.receiveShadow = true
   scene.add(ground)
 }
+
+
+// ===============================================
+// 🌟 GSAP 滚动动画 (严格模式：确保进入视野才加载)
+// ===============================================
+function initScrollAnimations() {
+  
+  const elementsToAnimate = [
+    ".intro-paragraph",       
+    ".data-kicker",           
+    ".stat-row",              
+    ".narrative-bridge",      
+    ".chart-card-container",  
+    ".intro-text-block .highlight-purple" 
+  ];
+
+  elementsToAnimate.forEach((selector) => {
+    const items = document.querySelectorAll(selector);
+
+    items.forEach((item) => {
+      // 先强制设为透明和下移，防止由 CSS 导致的闪烁
+      gsap.set(item, { autoAlpha: 0, y: 50 });
+
+      gsap.to(item, { // 使用 .to 从当前(隐藏)状态过渡到可见
+        autoAlpha: 1,
+        y: 0,
+        duration: 1,
+        ease: "power3.out",
+        scrollTrigger: {
+          trigger: item,
+          // 🌟 核心修改 1: "top 80%" 
+          // 意思是：当【元素顶部】到达【屏幕底部往上 20%】的位置时才触发
+          // 这能保证元素已经完全进入了视口底部，而不是刚露头就触发
+          start: "top 80%", 
+          toggleActions: "play none none reverse" 
+        }
+      });
+    });
+  });
+
+  // 标题开场动画
+  gsap.from(".titleArea", {
+    autoAlpha: 0,
+    y: 30,
+    duration: 1.2,
+    delay: 0.2,
+    ease: "power3.out"
+  });
+}
+
+// 调用
+initScrollAnimations();
 
 function loadModel() {
   MABuildings = new Model({
@@ -1156,6 +1248,194 @@ function wrap(text, width) {
       }
     }
   });
+}
+
+
+//图4
+function drawMonthlyCrimeTrend(monthlyData) {
+  const container = document.getElementById('d3-chartFour-wrapper');
+  
+  // 安全检查
+  if (!container || container.clientWidth === 0) return;
+  container.innerHTML = '';
+
+  const width = container.clientWidth;
+  const height = container.clientHeight;
+
+  const margin = { top: 60, right: 70, bottom: 90, left: 120 };
+  const innerWidth = width - margin.left - margin.right;
+  const innerHeight = height - margin.top - margin.bottom;
+
+  const svg = d3.select(container)
+    .append('svg')
+    .attr('width', width)
+    .attr('height', height);
+
+  // ===== 顶部标题 =====
+  // 建议：如果你想让标题动态变化，可以像Chart2那样传参数进来
+  svg.append('text')
+    // .text('NYU Incident Counts Trend')
+    .attr('x', margin.left) // 对齐左侧
+    .attr('y', 30)
+    .attr('fill', '#FFFFFF') // 改成白色，因为你的背景是深色
+    .attr('font-family', 'NYUTypeBold')
+    .attr('font-size', '24px')
+    .attr('text-anchor', 'start');
+
+  const g = svg.append('g')
+    .attr('transform', `translate(${margin.left},${margin.top})`);
+
+  // ===== 数据处理 =====
+  // 我们的 fetch 函数已经把数据处理成了 {label: 'Dec', value: 10} 的格式
+  const data = monthlyData;
+
+  // ===== 比例尺 =====
+  const x = d3.scalePoint()
+    .domain(data.map(d => d.label))
+    .range([0, innerWidth])
+    .padding(0.5);
+
+  const yMaxRaw = d3.max(data, d => d.value) || 10;
+  // 向上取整到最近的10，保证Y轴好看
+  const yMax = Math.ceil(yMaxRaw / 10) * 10;
+
+  const y = d3.scaleLinear()
+    .domain([0, yMax])
+    .range([innerHeight, 0]);
+
+  // ===== 背景网格线 =====
+  const yTicks = y.ticks(5);
+
+  // 水平网格线（暗紫）
+  g.selectAll('.grid-line-horizontal')
+    .data(yTicks)
+    .enter()
+    .append('line')
+    .attr('class', 'grid-line-horizontal')
+    .attr('x1', 0)
+    .attr('x2', innerWidth)
+    .attr('y1', d => y(d))
+    .attr('y2', d => y(d))
+    .attr('stroke', '#1A002E')
+    .attr('stroke-width', d => d === 0 ? 0 : 1);
+
+  // 垂直网格线
+  g.selectAll('.grid-line-vertical')
+    .data(data)
+    .enter()
+    .append('line')
+    .attr('class', 'grid-line-vertical')
+    .attr('x1', d => x(d.label))
+    .attr('x2', d => x(d.label))
+    .attr('y1', 0)
+    .attr('y2', innerHeight)
+    .attr('stroke', '#2A0050')
+    .attr('stroke-width', 1);
+
+  // ===== 折线 =====
+  const line = d3.line()
+    .x(d => x(d.label))
+    .y(d => y(d.value))
+    .curve(d3.curveMonotoneX);
+
+  g.append('path')
+    .datum(data)
+    .attr('fill', 'none')
+    .attr('stroke', '#9B00FF')
+    .attr('stroke-width', 3)
+    .attr('d', line);
+
+  // ===== 节点圆点 =====
+  g.selectAll('.line-point')
+    .data(data)
+    .enter()
+    .append('circle')
+    .attr('class', 'line-point')
+    .attr('cx', d => x(d.label))
+    .attr('cy', d => y(d.value))
+    .attr('r', 5)
+    .attr('fill', '#9B00FF')
+    .attr('stroke', '#FFFFFF')
+    .attr('stroke-width', 1.5);
+
+  // ===== 节点上的数字 =====
+  g.selectAll('.point-label')
+    .data(data)
+    .enter()
+    .append('text')
+    .attr('class', 'point-label')
+    .text(d => d.value)
+    .attr('x', d => x(d.label))
+    .attr('y', d => y(d.value) - 12)
+    .attr('text-anchor', 'middle')
+    .attr('fill', '#FFFFFF')
+    .attr('font-family', 'NYUTypeBold')
+    .attr('font-size', '16px');
+
+  // ===== Y 轴 =====
+  g.append('line')
+    .attr('x1', 0)
+    .attr('x2', 0)
+    .attr('y1', 0)
+    .attr('y2', innerHeight)
+    .attr('stroke', '#FFFFFF')
+    .attr('stroke-width', 1);
+
+  g.selectAll('.y-tick-line')
+    .data(yTicks.filter(d => d !== 0))
+    .enter()
+    .append('line')
+    .attr('class', 'y-tick-line')
+    .attr('x1', -6)
+    .attr('x2', 0)
+    .attr('y1', d => y(d))
+    .attr('y2', d => y(d))
+    .attr('stroke', '#FFFFFF')
+    .attr('stroke-width', 1);
+
+  g.selectAll('.y-tick-label')
+    .data(yTicks)
+    .enter()
+    .append('text')
+    .attr('class', 'y-tick-label')
+    .attr('x', -10)
+    .attr('y', d => y(d) + 4)
+    .attr('text-anchor', 'end')
+    .attr('fill', '#FFFFFF')
+    .attr('font-family', 'NYUTypeMedium')
+    .attr('font-size', '14px')
+    .text(d => d);
+
+  g.append('text')
+    .text('Total Count')
+    .attr('x', -10)
+    .attr('y', -25)
+    .attr('fill', '#FFFFFF')
+    .attr('font-family', 'NYUTypeBold')
+    .attr('font-size', '14px')
+    .attr('text-anchor', 'end');
+
+  // ===== X 轴 =====
+  g.append('line')
+    .attr('x1', 0)
+    .attr('x2', innerWidth)
+    .attr('y1', innerHeight)
+    .attr('y2', innerHeight)
+    .attr('stroke', '#FFFFFF')
+    .attr('stroke-width', 1);
+
+  g.selectAll('.x-tick-label')
+    .data(data)
+    .enter()
+    .append('text')
+    .attr('class', 'x-tick-label')
+    .attr('x', d => x(d.label))
+    .attr('y', innerHeight + 28)
+    .attr('text-anchor', 'middle')
+    .attr('fill', '#9B00FF') // 月份用紫色
+    .attr('font-family', 'NYUTypeMedium')
+    .attr('font-size', '16px')
+    .text(d => d.label);
 }
 
 

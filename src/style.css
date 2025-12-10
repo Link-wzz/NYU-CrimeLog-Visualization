@@ -411,6 +411,15 @@ border: 1px solid var(--primary-color);
   width: 100%;
   height: 580px; /* 固定高度确保绘图空间 */
 }
+
+#d3-chartFour-wrapper{
+  border: 1px solid var(--primary-color);
+  border-radius: 12px;
+  padding: 20px;
+  box-sizing: border-box;
+  width: 100%;
+  height: 800px; /* 固定高度确保绘图空间 */
+}
 /* 全局辅助 */
 /* * {
   border: none !important;
