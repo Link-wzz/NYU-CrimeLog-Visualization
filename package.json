@@ -16,6 +16,7 @@
     "vite": "^7.1.7"
   },
   "dependencies": {
+    "@vercel/analytics": "^1.6.1",
     "d3": "^7.9.0",
     "gsap": "^3.13.0",
     "three.interactive": "^1.8.0"

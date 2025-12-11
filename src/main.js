@@ -1,14 +1,18 @@
 import './style.css'
 import Stats from 'three/examples/jsm/libs/stats.module.js'
 import * as THREE from 'three'
-import { addLight } from './addLight'
-import Model from './model'
+import { addLight } from './addLight.js'
+import Model from './model.js'
 import { InteractionManager } from 'three.interactive'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import gsap from 'gsap'
 import * as d3 from 'd3'
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 gsap.registerPlugin(ScrollTrigger);
+
+// 1. 引入 inject 方法 (而不是组件)
+import { inject } from '@vercel/analytics';
+inject();
 
 // =========================================================
 // 1. 全局配置与变量
@@ -1705,6 +1709,8 @@ function onMouseMove(event) {
     hideTooltip()
   }
 }
+
+
 
 function showTooltip(info, x, y) {
   tooltip.innerHTML = `<div><strong>${info.displayName}</strong></div><div>Reported Crimes: ${info.crimeCount}</div>`
