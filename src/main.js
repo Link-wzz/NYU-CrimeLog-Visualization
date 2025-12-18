@@ -342,7 +342,6 @@ async function fetchAndCalcCsvData(slugs) {
 
     // 继续逐行处理其他数据
     rows.forEach(row => {
-      // --- A. 地点统计 ---
       const rawBuilding = row.col5; 
       const rawArea = row.col6;
       if (rawBuilding) {
@@ -882,7 +881,7 @@ function drawTimeOfDayChart(dataBins) {
   const timeLabels = [
     { text: '0:00',  sub: 'AM', value: 0 },
     { text: '6:00',  sub: 'AM', value: 1 },
-    { text: '12:00', sub: 'AM', value: 2 },
+    { text: '12:00', sub: 'PM', value: 2 },
     { text: '6:00',  sub: 'PM', value: 3 },
     { text: '11:59', sub: 'PM', value: 4 }
   ];
@@ -1382,7 +1381,6 @@ function drawCrimeTypePieChart(data) {
     });
 }
 
-// 辅助函数：Wrap
 function wrap(text, width) {
   text.each(function() {
     var text = d3.select(this),
@@ -1595,8 +1593,6 @@ function drawMonthlyCrimeTrend(monthlyData) {
     .text(d => d.label);
 }
 
-
-// 放在 main.js 最顶部
 function formatSlugToLabelWithYear(slug) {
   if (!slug) return '';
   // 假设 slug 是 'october-2025'

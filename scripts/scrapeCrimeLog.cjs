@@ -35,13 +35,12 @@ const DATA_DIR = path.join(__dirname, '..', 'public', 'crime-data')
 async function main() {
   console.log('即将抓取月份：', MONTH_SLUGS.join(', '), '\n')
 
-  // 确保目录存在
   if (!fs.existsSync(DATA_DIR)) {
     fs.mkdirSync(DATA_DIR, { recursive: true })
   }
 
   const browser = await puppeteer.launch({
-    headless: true, // 调试想看浏览器行为的话可以改成 false
+    headless: true, 
     defaultViewport: { width: 1400, height: 900 },
   })
 
@@ -53,7 +52,7 @@ async function main() {
       } catch (err) {
         console.error(`❌ 抓取 ${slug} 失败：`, err.message)
       }
-      console.log('') // 空行分隔一下
+      console.log('') 
     }
   } finally {
     await browser.close()
@@ -61,10 +60,7 @@ async function main() {
   }
 }
 
-/**
- * 抓取某一个月份，保存为 CSV。
- * 如果同名文件已存在，会打印提示并覆盖。
- */
+
 async function scrapeMonth(browser, monthSlug) {
   const url = `${BASE_URL}/${monthSlug}.html`
   console.log('打开页面：', url)
