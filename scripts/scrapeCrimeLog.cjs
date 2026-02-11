@@ -8,7 +8,6 @@ const puppeteer = require('puppeteer')
 // 想抓的月份 slug，例如 "july-2025"
 // 后面你可以随时往里加别的月份或年份
 const MONTH_SLUGS = [
-    'october-2024',
     'november-2024',
     'december-2024',
     'january-2025',
@@ -22,6 +21,9 @@ const MONTH_SLUGS = [
   'september-2025',
   'october-2025',
   'november-2025',
+  'december-2025',
+  'january-2026',
+
 
 ]
 
