@@ -83,7 +83,6 @@ updateColor(scaleConfig) {
     this.meshes.forEach((m) => {
         if (!m.material) return
         m.material.color.copy(finalColor)
-        m.material.needsUpdate = true
     })
 }
 

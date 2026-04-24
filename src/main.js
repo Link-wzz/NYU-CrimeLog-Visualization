@@ -26,7 +26,8 @@ const mixers = []
 
 // 模型实例
 let MABuildings = null
-let activeHoverBuilding = null 
+let activeHoverBuilding = null
+let isEntranceAnimating = false
 
 // 视角平移限制 (配合入场动画的终点)
 const PAN_LIMITS = {
@@ -680,7 +681,7 @@ function loadModel() {
 // 初始加载 Summary JSON (Past 12 Months)
 async function applyCrimeDataToModel(model) {
   try {
-    const res = await fetch('/crime-data/crime-summary-2024-2025.json')
+    const res = await fetch('/crime-data/crime-summary.json')
     if (!res.ok) return
     const summary = await res.json()
     model.setCrimeScale({ min: summary.meta.minCount, max: summary.meta.maxCount })
@@ -1617,7 +1618,8 @@ function formatSlugToLabelWithYear(slug) {
 
 function startEntranceAnimation() {
   // 🌟 1. 关键：动画开始前，彻底关掉控制器，防止它干扰 GSAP 运镜
-  controls.enabled = false; 
+  controls.enabled = false;
+  isEntranceAnimating = true;
 
   // 设置【上帝视角】初始状态
   camera.position.set(40, 30, -6); 
@@ -1648,8 +1650,9 @@ function startEntranceAnimation() {
 
     onComplete: () => {
       // 🌟 3. 动画结束：启用控制器，并同步状态
+      isEntranceAnimating = false;
       controls.enabled = true;
-      lockControls(); 
+      lockControls();
       console.log("入场动画完成，视角已锁定");
     }
   }, 0);
@@ -1721,11 +1724,13 @@ function animate() {
   requestAnimationFrame(animate)
   if (stats) stats.update()
 
-  controls.update()
-
-  // 坐标强行纠偏限制
-  controls.target.x = THREE.MathUtils.clamp(controls.target.x, PAN_LIMITS.minX, PAN_LIMITS.maxX)
-  controls.target.z = THREE.MathUtils.clamp(controls.target.z, PAN_LIMITS.minZ, PAN_LIMITS.maxZ)
+  if (isEntranceAnimating) {
+    camera.lookAt(controls.target)
+  } else {
+    controls.update()
+    controls.target.x = THREE.MathUtils.clamp(controls.target.x, PAN_LIMITS.minX, PAN_LIMITS.maxX)
+    controls.target.z = THREE.MathUtils.clamp(controls.target.z, PAN_LIMITS.minZ, PAN_LIMITS.maxZ)
+  }
 
   renderer.render(scene, camera)
 }

@@ -12,7 +12,7 @@ const DATA_DIR = path.join(__dirname, '..', 'public', 'crime-data')
 const MAPPING_FILE = path.join(DATA_DIR, 'MABuildingMatch.csv')
 
 // 📄 输出的汇总 JSON
-const OUTPUT_FILE = path.join(DATA_DIR, 'crime-summary-2024-2025.json')
+const OUTPUT_FILE = path.join(DATA_DIR, 'crime-summary.json')
 
 // 原始数据里的列名：哪一列是“建筑名称”和“区域”
 // 你 scrape 出来的 header 是 col1,col2...，我们现在假定：col5 = building, col6 = area
@@ -139,6 +139,7 @@ async function main() {
 
   const summary = {
     meta: {
+      generatedAt: new Date().toISOString(),
       totalIncidents,
       unmatchedRows,
       minCount,
