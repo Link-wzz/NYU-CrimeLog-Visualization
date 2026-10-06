@@ -32,6 +32,13 @@ jobs:
         env:
           CI: true
 
+      - name: Upload debug pages on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: scrape-debug
+          path: public/crime-data/debug-*
+
       - name: Build crime summary
         run: npm run build:summary
 
@@ -39,10 +46,12 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add public/crime-data/
+          # 只看 CSV 是否变化；summary 每次都会刷新 generatedAt，不能作为依据
+          git add public/crime-data/*.csv
           if git diff --staged --quiet; then
             echo "No data changes, skipping commit."
           else
+            git add public/crime-data/crime-summary.json
             git commit -m "chore: weekly crime data update $(date -u +'%Y-%m-%d')"
             git push
           fi

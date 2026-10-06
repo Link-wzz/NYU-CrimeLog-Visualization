@@ -102,8 +102,17 @@ async function scrapeMainPage(browser) {
     await page.goto(MAIN_URL, { waitUntil: 'networkidle2', timeout: 60_000 })
   } catch (err) {
     await page.close()
-    console.error('主页加载失败：', err.message)
-    return []
+    throw new Error(`主页加载失败：${err.message}`)
+  }
+
+  // 被 AWS WAF 人机验证拦截时直接失败，避免 CI 提交空更新
+  const blocked = await page.evaluate(
+    () => document.title.includes('Human Verification') || 'gokuProps' in window
+  )
+  if (blocked) {
+    await saveDebug(page, 'main-page')
+    await page.close()
+    throw new Error('主页被 AWS WAF 人机验证拦截，未抓到数据')
   }
 
   // 解析侧边栏归档链接（不依赖表格是否加载）
